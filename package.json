@@ -1,0 +1,40 @@
+{
+  "name": "lpf-ctf",
+  "version": "1.0.0",
+  "description": "Multiplayer capture the flag",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "test": "node server.js",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mikolalysenko/lpf-ctf.git"
+  },
+  "keywords": [
+    "multiplayer",
+    "capture",
+    "the",
+    "flag",
+    "relativity",
+    "network",
+    "game"
+  ],
+  "author": "Mikola Lysenko",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mikolalysenko/lpf-ctf/issues"
+  },
+  "homepage": "https://github.com/mikolalysenko/lpf-ctf",
+  "dependencies": {
+    "right-now": "^1.0.0",
+    "binary-search-bounds": "^1.0.0",
+    "nextafter": "^1.0.0",
+    "canvas-testbed": "^0.4.0",
+    "browserify": "^5.10.0",
+    "beefy": "^2.1.0",
+    "ws": "^0.4.32",
+    "parsed-url": "0.0.0"
+  }
+}

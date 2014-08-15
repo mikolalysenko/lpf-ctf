@@ -46,7 +46,7 @@ function ShootEvent(t, now, x, id, v) {
 
 //Turn description of event into object
 function createEvent(object) {
-  if(Object.type === 'init') {
+  if(object.type === 'init') {
     return new InitEvent(
       ''+object.id,
       object.world)

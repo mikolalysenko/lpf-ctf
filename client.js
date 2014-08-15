@@ -15,12 +15,16 @@ createCanvas(render, {
 socket.onmessage = function(socketEvent) {
   var event = createEvent.parse(socketEvent.data)
   if(!event) {
+    console.warn('bad event:', socketEvent.data)
     return
   }
   switch(event.type) {
     case 'init':
-      world    = createWorld.fromJSON(event.world)
-      playerId = event.id
+      world            = createWorld.fromJSON(event.world)
+      world.debugTrace = true
+      playerId         = event.id
+
+      console.log('init world:', world)
     break
 
     case 'join':
@@ -31,6 +35,10 @@ socket.onmessage = function(socketEvent) {
       world.handleEvent(event)
     break
   }
+}
+
+socket.onclose = function() {
+  console.log('lost connection to server')
 }
 
 function render(context, width, height) {

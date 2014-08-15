@@ -30,7 +30,9 @@ server.listen(PORTNUM)
 console.log('listening on:', PORTNUM)
 
 //World state
-var world = createWorld()
+var world = createWorld({
+  debugTrace: true
+})
 
 //Client list
 var clients = []
@@ -53,21 +55,26 @@ wss.on('connection', function(socket) {
   //Try adding player to the world
   var player = world.createPlayer()
 
+  //Notify player connected
+  if(world.debugTrace) {
+    console.log('player connected:', player)
+  }
+
   //Broadcast event
   broadcast({
     type: 'join',
     t:    player.lastUpdate,
     id:   player.id,
-    x:    player.trajectory.events[0].x,
+    x:    player.trajectory.x(player.lastUpdate),
     team: player.team
   })
 
   //Send initial state
-  socket.send({
+  socket.send(JSON.stringify({
     type: 'init',
     id: player.id,
     world: world.toJSON()
-  })
+  }))
   
   //Save player connection
   var connection = {
@@ -82,6 +89,9 @@ wss.on('connection', function(socket) {
     if(!event || 
        event.id !== player.id ||
       !world.validateEvent(event)) {
+      if(world.debugTrace) {
+        console.log('rejected bad event:', event)
+      }
       return
     }
     broadcast(event, player.id)
@@ -94,13 +104,16 @@ wss.on('connection', function(socket) {
       disconnect()
     }
   }
-  var timeoutInterval = setInterval(checkTimeout, 0.25 * world.maxRTT)
+  var timeoutInterval = setInterval(checkTimeout, 1000.0 * 0.25 * world.maxRTT)
 
   //When socket closes, destroy player
   var closed = false
   function disconnect() {
     if(closed) {
       return
+    }
+    if(world.debugTrace) {
+      console.log('player disconnect:', player.id)
     }
     if(timeoutInterval) {
       clearInterval(timeoutInterval)
@@ -110,15 +123,15 @@ wss.on('connection', function(socket) {
     if(idx >= 0) {
       clients.splice(idx, 1)
     }
-    if(world.destroyPlayer(
-        nextafter(player.lastUpdate, Infinity), 
-        player.id)) {
-      broadcast({
-        type: 'leave',
-        id:   player.id,
-        t:    player.trajectory.destroyTime
-      })
-    }
+    var destroyT = nextafter(player.lastUpdate, Infinity)
+    var destroyEvent = createEvent({
+      type: 'leave',
+      id:   player.id,
+      t:    destroyT,
+      x:    player.trajectory.x(destroyT)
+    })
+    world.handleEvent(destroyEvent)
+    broadcast(destroyEvent)
     closed = true
   }
   socket.on('close', disconnect)

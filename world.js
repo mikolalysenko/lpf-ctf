@@ -8,11 +8,12 @@ var createEntity    = require('./entity')
 var minkowski       = require('./minkowski')
 var intersectCauchy = require('./intersect-cauchy')
 
-function World(speedOfLight, maxRTT, entities, clock) {
+function World(speedOfLight, maxRTT, debugTrace, entities, clock) {
   this.entities     = []
   this.speedOfLight = speedOfLight
   this.maxRTT       = maxRTT
   this.clock        = clock
+  this.debugTrace   = debugTrace
 
   this._horizonEvents = []
   this._entityIndex   = {}
@@ -21,6 +22,7 @@ function World(speedOfLight, maxRTT, entities, clock) {
 var proto = World.prototype
 
 proto.createEntity = function(params) {
+  params = params|| {}
   var t       = params.t      || this.clock.now()
   var id      = params.id     || '' + this.entities.length
   var x       = params.x      || [0,0]
@@ -40,7 +42,7 @@ proto.createEntity = function(params) {
 proto.destroyEntity = function(t, id) {
   var entity = this._entityIndex[id]
   if(!entity || 
-      entity.trajectory.destroyed(t)) {
+     !entity.trajectory.exists(t)) {
     return false
   }
   entity.active     = false
@@ -49,7 +51,7 @@ proto.destroyEntity = function(t, id) {
 }
 
 proto.createPlayer = function() {
-  return createEntity({
+  return this.createEntity({
     t:      this.clock.now() + this.maxRTT,
     type:   'player',
     team:   (Math.random() < 0.5 ? 'red' : 'blue'),
@@ -65,7 +67,7 @@ proto.validateEvent = function(event) {
       var entity = this._entityIndex[event.id]
       if(!entity || 
           entity.type !== 'player' ||
-          entity.destroyed(event.t)) {
+         !entity.trajectory.exists(event.t)) {
         return false
       }
       //Check that event is in future light cone
@@ -85,6 +87,11 @@ function simulate(world, oldHorizon, newHorizon) {
 }
 
 proto.handleEvent = function(event) {
+
+  if(this.debugTrace) {
+    console.log('event:', event)
+  }
+
   var oldHorizon = this.horizon()
   switch(event.type) {
     case 'join':
@@ -138,7 +145,7 @@ proto.horizon = function() {
       continue
     }
     var he = [0,0,e.lastUpdate]
-    if(e.x(e.lastUpdate, he)) {
+    if(e.trajectory.x(e.lastUpdate, he)) {
       events.push(he)
     }
   }
@@ -149,10 +156,11 @@ proto.horizon = function() {
 }
 
 function createWorld(options) {
-  options       = options || {}
-  var c         = options.speedOfLight || 1.0
-  var maxRTT    = options.maxRTT       || 3.0
-  return new World(c, maxRTT, [], createClock(0))
+  options         = options || {}
+  var c           = options.speedOfLight || 1.0
+  var maxRTT      = options.maxRTT       || 3.0
+  var debugTrace  = options.debugTrace   || false
+  return new World(c, maxRTT, debugTrace, [], createClock(0))
 }
 
 proto.toJSON = function() {
@@ -167,9 +175,10 @@ proto.toJSON = function() {
 }
 
 function worldFromJSON(object) {
-  var c = +object.speedOfLight
+  var c        = +object.speedOfLight
+  var rtt      = +object.maxRTT
   var entities = object.entities.map(createEntity.fromJSON)
-  var result = new World(c, entities, createClock(+object.now))
+  var result   = new World(c, rtt, false, entities, createClock(+object.now))
   for(var i=0; i<entities.length; ++i) {
     result._entityIndex[entities[i].id] = entities[i]
   }

@@ -2,7 +2,11 @@
 
 module.exports = createClock
 
-var now = require('right-now')
+var nowMS = require('right-now')
+
+function now() {
+  return nowMS() / 1000.0
+}
 
 function Clock(shift) {
   this.shift           = shift
@@ -12,7 +16,7 @@ function Clock(shift) {
   this._interpRate     = 0.5
 }
 
-var proto = Clock.proto
+var proto = Clock.prototype
 
 proto.now = function() {
   if(this._interpolating) {

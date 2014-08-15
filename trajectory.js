@@ -70,7 +70,7 @@ proto.v = function(t, result) {
 
 proto.setVelocity = function(t, v) {
   var states = this.states
-  states.push(new State(t, this.x(t), v.slice(), states[states.length-1].s))
+  states.push(new State(t, this.x(t), v.slice(), this.states[this.states.length-1].s))
 }
 
 proto.setState = function(t, value) {
@@ -79,9 +79,9 @@ proto.setState = function(t, value) {
 
 proto.destroy = function(t) {
   var x   = this.x(t)
-  var idx = bsearch.le(this.states, t, compareT)
+  var idx = bsearch.ge(this.states, t, compareT)+1
   this.states = this.states.slice(0, idx)
-  this.states.push(new State(t, x, [0,0], states[states.length-1].s))
+  this.states.push(new State(t, x, [0,0], this.states[this.states.length-1].s))
   this.destroyTime = t
 }
 
