@@ -5,7 +5,7 @@
   "main": "server.js",
   "private": true,
   "scripts": {
-    "test": "node server.js",
+    "test": "tape test/*.js",
     "start": "node server.js"
   },
   "repository": {
@@ -36,5 +36,8 @@
     "beefy": "^2.1.0",
     "ws": "^0.4.32",
     "parsed-url": "0.0.0"
+  },
+  "devDependencies": {
+    "tape": "^2.14.0"
   }
 }

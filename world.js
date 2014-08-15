@@ -23,6 +23,7 @@ var proto = World.prototype
 
 proto.createEntity = function(params) {
   params = params|| {}
+  
   var t       = params.t      || this.clock.now()
   var id      = params.id     || '' + this.entities.length
   var x       = params.x      || [0,0]
