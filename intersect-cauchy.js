@@ -6,7 +6,7 @@ module.exports = intersectCauchySurface
 function intersectCauchySurface(phi, q, t0, t1, n) {
   n  = n  || 16
   t0 = t0 || 0
-  t1 = t1 || Infinity
+  t1 = t1 || 1e10
 
   t0 = Math.max(t0, q.createTime)
   t1 = Math.min(t1, q.destroyTime)

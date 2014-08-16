@@ -97,6 +97,9 @@ function createTrajectory(t, x, v) {
 function fromJSON(object) {
   var createTime  = +object.createTime
   var destroyTime = +object.destroyTime
+  if(!object.destroyTime) {
+    destroyTime = Infinity
+  }
   return new Trajectory(object.states.map(function(s) {
     return new State(s.t, s.x.slice(), s.v.slice(), s.state)
   }), createTime, destroyTime)

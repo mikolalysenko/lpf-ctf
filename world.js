@@ -8,13 +8,27 @@ var createEntity    = require('./entity')
 var minkowski       = require('./minkowski')
 var intersectCauchy = require('./intersect-cauchy')
 
-function World(speedOfLight, maxRTT, debugTrace, entities, clock) {
-  this.entities     = []
+function World(
+    speedOfLight, 
+    maxRTT, 
+    debugTrace, 
+    playerSpeed, 
+    bulletSpeed,
+    entities, 
+    clock) {
+  //Constants
   this.speedOfLight = speedOfLight
   this.maxRTT       = maxRTT
-  this.clock        = clock
-  this.debugTrace   = debugTrace
+  this.playerSpeed  = playerSpeed
+  this.bulletSpeed  = bulletSpeed
 
+  this.entities     = entities
+
+  this.clock        = clock
+  
+  //Logging and debug flags
+  this.debugTrace   = debugTrace
+  
   this._horizonEvents = []
   this._entityIndex   = {}
 }
@@ -69,15 +83,31 @@ proto.validateEvent = function(event) {
       if(!entity || 
           entity.type !== 'player' ||
          !entity.trajectory.exists(event.t)) {
+        console.log('invalid entity')
         return false
       }
       //Check that event is in future light cone
       var t0 = entity.lastUpdate
       var x0 = entity.trajectory.x(t0)
       if(t0 < event.t &&
-         minkowski.dist2(x0, t0, event.x, event.t, c) > 0) {
+         minkowski.dist2(x0, t0, event.x, event.t, this.speedOfLight) > 0) {
         return false
       }
+
+      //Check velocity constraints
+      var v = event.v
+      var vl = Math.sqrt(Math.pow(v[0],2), + Math.pow(v[1],2))
+      if(event.type === 'move') {
+        if(vl > this.playerSpeed + 1e-4) {
+          return false
+        }
+      }
+      if(event.type === 'shoot') {
+        if(Math.abs(vl - this.bulletSpeed) > 1e-4) {
+          return false
+        }
+      }
+
       return true
     break
   }
@@ -106,6 +136,9 @@ proto.handleEvent = function(event) {
     break
 
     case 'move':
+      var entity = this._entityIndex[event.id]
+      entity.trajectory.setVelocity(event.t, event.v)
+      entity.lastUpdate = event.t
     break
 
     case 'shoot':
@@ -159,15 +192,26 @@ proto.horizon = function() {
 function createWorld(options) {
   options         = options || {}
   var c           = options.speedOfLight || 1.0
-  var maxRTT      = options.maxRTT       || 3.0
+  var maxRTT      = options.maxRTT       || 6.0
   var debugTrace  = options.debugTrace   || false
-  return new World(c, maxRTT, debugTrace, [], createClock(0))
+  var bulletSpeed = options.bulletSpeed  || 0.95*c
+  var playerSpeed = options.playerSpeed  || 0.25*c
+  return new World(
+    c, 
+    maxRTT, 
+    debugTrace, 
+    playerSpeed,
+    bulletSpeed,
+    [], 
+    createClock(0))
 }
 
 proto.toJSON = function() {
   return {
     speedOfLight: this.speedOfLight,
     maxRTT:       this.maxRTT,
+    playerSpeed:  this.playerSpeed,
+    bulletSpeed:  this.bulletSpeed,
     now:          this.clock.now(),
     entities: this.entities.map(function(e) {
       return e.toJSON()
@@ -176,10 +220,15 @@ proto.toJSON = function() {
 }
 
 function worldFromJSON(object) {
-  var c        = +object.speedOfLight
-  var rtt      = +object.maxRTT
   var entities = object.entities.map(createEntity.fromJSON)
-  var result   = new World(c, rtt, false, entities, createClock(+object.now))
+  var result   = new World(
+    +object.speedOfLight, 
+    +object.maxRTT, 
+    +object.debugTrace, 
+    +object.playerSpeed,
+    +object.bulletSpeed,
+    entities, 
+    createClock(+object.now))
   for(var i=0; i<entities.length; ++i) {
     result._entityIndex[entities[i].id] = entities[i]
   }

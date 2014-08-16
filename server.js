@@ -5,6 +5,7 @@ var PORTNUM = 8080
 var beefy     = require('beefy')
 var http      = require('http')
 var path      = require('path')
+var url       = require('url')
 var ws        = require('ws')
 var nextafter = require('nextafter')
 
@@ -13,13 +14,21 @@ var createEvent = require('./event')
 
 //Initialize http server, websockets and beefy
 var beefyHandler = beefy({
-  entries: [ path.join(__dirname, 'client.js') ],
+  entries: [
+    'client.js',
+    'visualize.js'
+  ],
   cwd:      __dirname,
   live:     true,
   quiet:    false,
   watchify: false 
 })
 var server = http.createServer(function(req, res) {
+  var parsedURL = url.parse(req.url)
+  if(parsedURL && parsedURL.pathname === '/world' ) {
+    res.end(JSON.stringify(world.toJSON()))
+    return
+  }
   return beefyHandler(req, res)
 })
 var wss = new ws.Server({ 
@@ -85,6 +94,8 @@ wss.on('connection', function(socket) {
 
   //Handle events from player
   socket.on('message', function(data) {
+    console.log('raw data:', data)
+
     var event = createEvent.parse(data)
     if(!event || 
        event.id !== player.id ||
