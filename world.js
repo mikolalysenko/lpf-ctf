@@ -191,11 +191,11 @@ proto.horizon = function() {
 
 function createWorld(options) {
   options         = options || {}
-  var c           = options.speedOfLight || 1.0
+  var c           = options.speedOfLight || 3.0
   var maxRTT      = options.maxRTT       || 6.0
   var debugTrace  = options.debugTrace   || false
   var bulletSpeed = options.bulletSpeed  || 0.95*c
-  var playerSpeed = options.playerSpeed  || 0.25*c
+  var playerSpeed = options.playerSpeed  || 0.8*c
   return new World(
     c, 
     maxRTT, 

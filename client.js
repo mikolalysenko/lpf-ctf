@@ -2,6 +2,7 @@
 
 var url             = require('parsed-url')
 var createCanvas    = require('canvas-testbed')
+var vkey            = require('vkey')
 var createWorld     = require('./world')
 var createEvent     = require('./event')
 var intersectCauchy = require('./intersect-cauchy')
@@ -50,6 +51,78 @@ function initWorld(initState, id) {
   createCanvas(render, { 
     context: '2d'
   })
+
+  //Hook up input handlers
+  var keyState = {
+    '<left>':   false,
+    '<right>':  false,
+    '<up>':     false,
+    '<down>':   false
+  }
+
+  function updateMovement() {
+    //Compute new movement event
+    var v = [0,0]
+    if(keyState['<left>']) {
+      v[0] -= 1
+    }
+    if(keyState['<right>']) {
+      v[0] += 1
+    }
+    if(keyState['<up>']) {
+      v[1] -= 1
+    }
+    if(keyState['<down>']) {
+      v[1] += 1
+    }
+
+    //Normalize velocity
+    var vl = Math.sqrt(Math.pow(v[0],2) + Math.pow(v[1],2))
+    if(vl > 1e-4) {
+      vl = world.playerSpeed / vl
+    }
+    v[0] *= vl
+    v[1] *= vl
+
+    //Apply movement event
+    var t = world.clock.now()
+    var cv = player.trajectory.v(t)
+    if(cv && Math.abs(v[0]-cv[0]) + Math.abs(v[1]-cv[1]) > 1e-4) {
+      var moveEvent = createEvent({
+        type: 'move',
+        t:    t,
+        now:  t,
+        id:   player.id,
+        x:    player.trajectory.x(t),
+        v:    v
+      })
+      world.handleEvent(moveEvent)
+      socket.send(moveEvent)
+    }
+  }
+
+  document.body.addEventListener('keydown', function(event) {
+    var key = vkey[event.keyCode]
+    if(key in keyState) {
+      keyState[key] = true
+    }
+    updateMovement()
+  })
+
+  document.body.addEventListener('keyup', function(event) {
+    var key = vkey[event.keyCode]
+    if(key in keyState) {
+      keyState[key] = false
+    }
+    updateMovement()
+  })
+
+  document.body.addEventListener('blur', function() {
+    for(var id in keyState) {
+      keyState[id] = false
+    }
+    updateMovement()
+  })
 }
 
 function heartbeat() {
@@ -85,6 +158,10 @@ function render(context, width, height) {
     var e = world.entities[i]
     var x = e.trajectory.x(t)
     if(x) {
+      if(e.id === player.id) {
+        context.fillStyle = 'white'
+        context.fillText('☻', x[0], x[1])
+      }
       context.fillStyle = e.team
       context.fillText(SYMBOLS[e.type], x[0], x[1])
     }
