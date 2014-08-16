@@ -97,7 +97,7 @@ function initWorld(initState, id) {
         v:    v
       })
       world.handleEvent(moveEvent)
-      socket.send(moveEvent)
+      socket.send(JSON.stringify(moveEvent))
     }
   }
 

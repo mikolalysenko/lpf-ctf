@@ -68,9 +68,40 @@ proto.v = function(t, result) {
   return result
 }
 
+function statesEqual(a, b) {
+
+  if(Math.abs(b.v[0] - a.v[0]) + Math.abs(a.v[1] - b.v[1]) > 1e-6) {
+    return false
+  }
+  if(a.s !== b.s) {
+    return false
+  }
+
+  var t0 = a.t
+  var t1 = b.t
+  var dt = t1 - t0
+  var nx = a.x[0] + dt*a.v[0]
+  var ny = a.x[1] + dt*a.v[1]
+  if(Math.abs(b.x[0]-nx) + Math.abs(b.x[1]-ny) > 1e-6) {
+    return false
+  }
+
+  return true
+}
+
 proto.setVelocity = function(t, v) {
-  var states = this.states
-  states.push(new State(t, this.x(t), v.slice(), this.states[this.states.length-1].s))
+  var states    = this.states
+  var nextState = new State(t, this.x(t), v.slice(), this.states[this.states.length-1].s)
+
+  //Compress previous states
+  for(var i=this.states.length-1; i>0; --i) {
+    if(statesEqual(this.states[i-1], this.states[i])) {
+      this.states.pop()
+    } else {
+      break
+    }
+  }
+  this.states.push(nextState)
 }
 
 proto.setState = function(t, value) {
