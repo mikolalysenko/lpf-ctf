@@ -47,7 +47,7 @@ var world = createWorld({
 world.createEntity({
   type: 'flag',
   team: 'red',
-  x: [0, -9.5]
+  x: [0,-9.5]
 })
 world.createEntity({
   type: 'flag',
@@ -126,12 +126,12 @@ wss.on('connection', function(socket) {
   })
 
   //Check timeout on socket
-  function checkTimeout() {
-    if(player.lastUpdate + world.maxRTT < world.clock.now()) {
+  function checkDisconnect() {
+    if((player.lastUpdate + world.maxRTT < world.clock.now()) || player.destroyT < Infinity) {
       disconnect()
     }
   }
-  var timeoutInterval = setInterval(checkTimeout, 1000.0 * 0.25 * world.maxRTT)
+  var timeoutInterval = setInterval(checkDisconnect, 200)
 
   //When socket closes, destroy player
   var closed = false
@@ -150,7 +150,10 @@ wss.on('connection', function(socket) {
     if(idx >= 0) {
       clients.splice(idx, 1)
     }
-    var destroyT = nextafter(player.lastUpdate, Infinity)
+    var destroyT = player.trajectory.destroyTime
+    if(player.trajectory.destroyTime >= Infinity) {
+      destroyT = nextafter(player.lastUpdate, Infinity)
+    }
     var destroyEvent = createEvent({
       type: 'leave',
       id:   player.id,

@@ -28,7 +28,7 @@ proto.toJSON = function() {
   return this
 }
 
-function createEntity(t, id, x, v, type, team, data, active) {
+function createEntity(t, id, x, v, type, team, data, active, state) {
   return new Entity(
     id,
     team,
@@ -36,7 +36,7 @@ function createEntity(t, id, x, v, type, team, data, active) {
     t,
     data,
     active,
-    createTrajectory(t, x, v))
+    createTrajectory(t, x, v, state))
 }
 
 function entityFromJSON(object) {

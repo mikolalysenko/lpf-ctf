@@ -170,6 +170,25 @@ function heartbeat() {
   }
 }
 
+
+function tickLocal() {
+  if(!world) {
+    return
+  }
+  var t = world.clock.now()
+  var x = player.trajectory.x(t)
+  if(x) {
+    world.handleEvent(createEvent({
+      type: 'move',
+      id:   player.id,
+      now:  t,
+      t:    t,
+      x:    x,
+      v:    player.trajectory.v(t)
+    }))
+  } 
+}
+
 function render(context, width, height) {
   context.fillStyle = 'black'
   context.fillRect(0, 0, width, height)
@@ -187,6 +206,8 @@ function render(context, width, height) {
     context.fillText('lost connection to server', 0,0)
     return
   }
+
+  tickLocal()
 
   //For each entity, draw it dumbly (apply lpf later)
   var t = world.clock.now()

@@ -19,7 +19,7 @@ function solveT(ax, av, at,
   var vv = v0*v0 + v1*v1
 
   //Check collision at time t0
-  if(xx + 2.0*xv*t + vv*t*t <= 0) {
+  if(xx + 2.0*xv*t0 + vv*t0*t0 <= 0) {
     return t0
   }
 
@@ -30,12 +30,12 @@ function solveT(ax, av, at,
   }
 
   var d   = Math.sqrt(discr)
-  var s0  = 0.5 * (-2.0*xv - d) / a
+  var s0  = 0.5 * (-2.0*xv - d) / vv
   if(t0 <= s0 && s0 <= t1) {
     return s0
   }
 
-  var s1 = 0.5 * (-2.0*xv + d) / a
+  var s1 = 0.5 * (-2.0*xv + d) / vv
   if(t0 <= s1 && s1 <= t1) {
     return s1
   }
@@ -43,15 +43,17 @@ function solveT(ax, av, at,
   return -1
 }
 
+function compareT(state, t) {
+  return state.t - t
+}
+
 //Find first collision between trajectories
 function testCollision(a, b, t0, t1, radius) {
   t0 = Math.max(a.createTime,  b.createTime,  +t0)
   t1 = Math.min(a.destroyTime, b.destroyTime, +t1)
 
-  var a0 = bsearch.ge(a.states, compareT, t0)
-  var a1 = bsearch.lt(a.states, compareT, t1)
-  var b0 = bsearch.ge(b.states, compareT, t0)
-  var b1 = bsearch.lt(b.states, compareT, t1)
+  var a0 = Math.max(bsearch.le(a.states, t0, compareT), 0)
+  var b0 = Math.max(bsearch.le(b.states, t0, compareT), 0)
   var t  = t0
   while(t < t1) {
     var nt = t1

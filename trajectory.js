@@ -89,29 +89,33 @@ function statesEqual(a, b) {
   return true
 }
 
-proto.setVelocity = function(t, v) {
-  var states    = this.states
-  var nextState = new State(t, this.x(t), v.slice(), this.states[this.states.length-1].s)
 
-  //Compress previous states
-  for(var i=this.states.length-1; i>0; --i) {
-    if(statesEqual(this.states[i-1], this.states[i])) {
-      this.states.pop()
+function compressStates(states) {
+  for(var i=states.length-1; i>0; --i) {
+    if(statesEqual(states[i-1], states[i])) {
+      states.pop()
     } else {
       break
     }
   }
+}
+
+proto.setVelocity = function(t, v) {
+  var nextState = new State(t, this.x(t), v.slice(), this.states[this.states.length-1].s)
+  compressStates(this.states)
   this.states.push(nextState)
 }
 
 proto.setState = function(t, value) {
-  states.push(new State(t, this.x(t), this.v(t), value))
+  compressStates(this.states)
+  this.states.push(new State(t, this.x(t), this.v(t), value))
 }
 
 proto.destroy = function(t) {
   var x   = this.x(t)
   var idx = bsearch.ge(this.states, t, compareT)+1
   this.states = this.states.slice(0, idx)
+  compressStates(this.states)
   this.states.push(new State(t, x, [0,0], this.states[this.states.length-1].s))
   this.destroyTime = t
 }
@@ -120,8 +124,8 @@ proto.toJSON = function() {
   return this
 }
 
-function createTrajectory(t, x, v) {
-  var initState = new State(t, x.slice(), v.slice())
+function createTrajectory(t, x, v, state) {
+  var initState = new State(t, x.slice(), v.slice(), state)
   return new Trajectory([initState], t, Infinity)
 }
 

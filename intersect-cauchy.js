@@ -4,7 +4,7 @@ module.exports = intersectCauchySurface
 
 //Intersect a world line with a Cauchy surface
 function intersectCauchySurface(phi, q, t0, t1, n) {
-  n  = n  || 16
+  n  = n  || 32
   t0 = t0 || 0
   t1 = t1 || 1e10
 
@@ -15,6 +15,18 @@ function intersectCauchySurface(phi, q, t0, t1, n) {
   }
 
   var x = [0,0]
+
+  //Test end points
+  q.x(t0, x)
+  if(phi(x[0], x[1]) < t0) {
+    return -1
+  }
+  q.x(t1, x)
+  if(phi(x[0], x[1]) > t1) {
+    return -1
+  }
+
+  //Curve crosses surface, so binary search
   for(var i=0; i<n; ++i) {
     var t = 0.5 * (t0 + t1)
     q.x(t, x)
