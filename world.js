@@ -14,6 +14,8 @@ function World(
     debugTrace, 
     playerSpeed, 
     bulletSpeed,
+    shootRate,
+    bulletLife,
     entities, 
     clock) {
   //Constants
@@ -21,6 +23,8 @@ function World(
   this.maxRTT       = maxRTT
   this.playerSpeed  = playerSpeed
   this.bulletSpeed  = bulletSpeed
+  this.shootRate    = shootRate
+  this.bulletLife   = bulletLife
 
   this.entities     = entities
 
@@ -29,6 +33,7 @@ function World(
   //Logging and debug flags
   this.debugTrace   = debugTrace
   
+  this._lastTick      = 0.0
   this._horizonEvents = []
   this._entityIndex   = {}
 }
@@ -44,11 +49,12 @@ proto.createEntity = function(params) {
   var v       = params.v      || [0,0]
   var type    = params.type   || ''
   var team    = params.team   || ''
-  var radius  = params.radius || 0.0
   var data    = params.data   || null
   var active  = params.active || false
+  var state   = params.state  || null
 
-  var entity  = createEntity(t, id, x, v, type, team, radius, data, active)
+  var entity  = createEntity(t, id, x, v, type, team, data, active)
+  entity.trajectory.states[0].s = state
   this.entities.push(entity)
   this._entityIndex[id] = entity
   return entity
@@ -70,7 +76,11 @@ proto.createPlayer = function() {
     t:      this.clock.now() + this.maxRTT,
     type:   'player',
     team:   (Math.random() < 0.5 ? 'red' : 'blue'),
-    active: true
+    active: true,
+    data:   {
+      numShots: 0,
+      lastShot: 0
+    }
   })
 }
 
@@ -94,7 +104,7 @@ proto.validateEvent = function(event) {
         return false
       }
 
-      //Check velocity constraints
+      //Check event specific constraints
       var v = event.v
       var vl = Math.sqrt(Math.pow(v[0],2), + Math.pow(v[1],2))
       if(event.type === 'move') {
@@ -103,7 +113,12 @@ proto.validateEvent = function(event) {
         }
       }
       if(event.type === 'shoot') {
-        if(Math.abs(vl - this.bulletSpeed) > 1e-4) {
+        if(Math.abs(vl - this.bulletSpeed) < 1e-4) {
+          console.log('reject shoot: bad speed', vl, this.bulletSpeed)
+          return false
+        }
+        if(this.shootRate + entity.data.lastShot >= event.t) {
+          console.log('reject shoot: too fast')
           return false
         }
       }
@@ -142,12 +157,26 @@ proto.handleEvent = function(event) {
     break
 
     case 'shoot':
+      var entity    = this._entityIndex[event.id]
+      var t         = event.t
+      var bulletId  = event.id + '.' + (entity.data.numShots++)
+      entity.data.lastShot = t
+      var bullet = this.createEntity({
+        id: bulletId,
+        t: t,
+        x: event.x,
+        v: event.v,
+        type: 'bullet',
+        team: entity.team
+      })
+      bullet.trajectory.destroy(t + this.bulletLife)
     break
 
     case 'leave':
       this.destroyEntity(event.t, event.id)
     break
   }
+  this._lastTick = this.clock.now()
   var newHorizon = this.horizon()
 
   //Simulate all events in oldHorizon \ newHorizon
@@ -185,7 +214,7 @@ proto.horizon = function() {
   }
   return createHorizon(
       events, 
-      this.clock.now(),
+      this._lastTick,
       1.0/this.speedOfLight)
 }
 
@@ -196,12 +225,16 @@ function createWorld(options) {
   var debugTrace  = options.debugTrace   || false
   var bulletSpeed = options.bulletSpeed  || 0.95*c
   var playerSpeed = options.playerSpeed  || 0.8*c
+  var shootRate   = options.shootRate    || 0.5
+  var bulletLife  = options.bulletLife   || 30.0/c
   return new World(
     c, 
     maxRTT, 
     debugTrace, 
     playerSpeed,
     bulletSpeed,
+    shootRate,
+    bulletLife,
     [], 
     createClock(0))
 }
@@ -212,6 +245,8 @@ proto.toJSON = function() {
     maxRTT:       this.maxRTT,
     playerSpeed:  this.playerSpeed,
     bulletSpeed:  this.bulletSpeed,
+    shootRate:    this.shootRate,
+    bulletLife:   this.bulletLife,
     now:          this.clock.now(),
     entities: this.entities.map(function(e) {
       return e.toJSON()
@@ -227,10 +262,13 @@ function worldFromJSON(object) {
     +object.debugTrace, 
     +object.playerSpeed,
     +object.bulletSpeed,
+    +object.shootRate,
+    +object.bulletLife,
     entities, 
     createClock(+object.now))
   for(var i=0; i<entities.length; ++i) {
     result._entityIndex[entities[i].id] = entities[i]
   }
+  result._lastTick = +object.now
   return result
 }

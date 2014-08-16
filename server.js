@@ -43,6 +43,18 @@ var world = createWorld({
   debugTrace: true
 })
 
+//Initialize flags
+world.createEntity({
+  type: 'flag',
+  team: 'red',
+  x: [0, -9.5]
+})
+world.createEntity({
+  type: 'flag',
+  team: 'blue',
+  x: [0, 9.5]
+})
+
 //Client list
 var clients = []
 
@@ -54,7 +66,11 @@ function broadcast(event, skipID) {
     if(clients[i].player.id === skipID) {
       continue
     }
-    clients[i].socket.send(message)
+    if(clients[i].socket.readyState === ws.OPEN) {
+      clients[i].socket.send(message)
+    } else {
+      console.warn('trying to send message to closed socket')
+    }
   }
 }
 

@@ -9,7 +9,6 @@ function Entity(
   id, 
   team, 
   type,
-  radius,
   lastUpdate, 
   data,
   active,
@@ -17,7 +16,6 @@ function Entity(
   this.id         = id
   this.team       = team
   this.type       = type
-  this.radius     = radius
   this.lastUpdate = lastUpdate
   this.data       = data
   this.active     = active
@@ -30,12 +28,11 @@ proto.toJSON = function() {
   return this
 }
 
-function createEntity(t, id, x, v, type, team, radius, data, active) {
+function createEntity(t, id, x, v, type, team, data, active) {
   return new Entity(
     id,
     team,
     type,
-    radius,
     t,
     data,
     active,
@@ -48,7 +45,6 @@ function entityFromJSON(object) {
     object.id,
     object.team,
     object.type,
-    +object.radius,
     +object.lastUpdate,
     object.data||null,
     !!object.active,
