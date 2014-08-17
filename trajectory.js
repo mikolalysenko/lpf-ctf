@@ -28,6 +28,17 @@ function compareT(state, t) {
   return state.t - t
 }
 
+proto.state = function(t) {
+  if(t > this.destroyTime || t < this.createTime) {
+    return ''
+  }
+  var idx = bsearch.le(this.states, t, compareT)
+  if(idx < 0) {
+    return ''
+  }
+  return this.states[idx].s
+}
+
 proto.x = function(t, result) {
   if(t > this.destroyTime || t < this.createTime) {
     return null
@@ -69,14 +80,12 @@ proto.v = function(t, result) {
 }
 
 function statesEqual(a, b) {
-
   if(Math.abs(b.v[0] - a.v[0]) + Math.abs(a.v[1] - b.v[1]) > 1e-6) {
     return false
   }
   if(a.s !== b.s) {
     return false
   }
-
   var t0 = a.t
   var t1 = b.t
   var dt = t1 - t0
@@ -85,7 +94,6 @@ function statesEqual(a, b) {
   if(Math.abs(b.x[0]-nx) + Math.abs(b.x[1]-ny) > 1e-6) {
     return false
   }
-
   return true
 }
 
@@ -108,14 +116,28 @@ proto.setVelocity = function(t, v) {
 
 proto.setState = function(t, value) {
   compressStates(this.states)
-  this.states.push(new State(t, this.x(t), this.v(t), value))
+  var insertIndex = this.states.length
+  for(var i=this.states.length-1; i>=0; --i) {
+    if(t <= this.states[i].t) {
+      this.states[i].s = value
+      insertIndex = i
+    }
+  }
+  var nextState = new State(t, this.x(t), this.v(t), value)
+  this.states.splice(insertIndex, 0, nextState)
+}
+
+proto.setFull = function(t, x, v, s) {
+  compressStates(this.states)
+  this.states.push(new State(t, x, v, s))
 }
 
 proto.destroy = function(t) {
-  var x   = this.x(t)
   var idx = bsearch.ge(this.states, t, compareT)+1
   this.states = this.states.slice(0, idx)
   compressStates(this.states)
+
+  var x   = this.x(t)
   this.states.push(new State(t, x, [0,0], this.states[this.states.length-1].s))
   this.destroyTime = t
 }
@@ -136,6 +158,6 @@ function fromJSON(object) {
     destroyTime = Infinity
   }
   return new Trajectory(object.states.map(function(s) {
-    return new State(s.t, s.x.slice(), s.v.slice(), s.state)
+    return new State(s.t, s.x.slice(), s.v.slice(), s.s)
   }), createTime, destroyTime)
 }

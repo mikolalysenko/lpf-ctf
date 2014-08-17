@@ -43,7 +43,8 @@
     "gl-line-plot": "^2.0.0",
     "gl-scatter-plot": "^5.0.0",
     "gl-axes": "^4.0.0",
-    "vkey": "^1.0.0"
+    "vkey": "^1.0.0",
+    "colormap": "^1.1.1"
   },
   "devDependencies": {
     "tape": "^2.14.0"

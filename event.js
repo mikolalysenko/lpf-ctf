@@ -44,8 +44,21 @@ function ShootEvent(t, now, x, id, v) {
   this.v    = v
 }
 
+function SyncEvent(now, then) {
+  this.type = 'sync'
+  this.now  = now
+  this.then = then
+}
+
 //Turn description of event into object
 function createEvent(object) {
+
+  if(object.type === 'sync') {
+    return new SyncEvent(
+      +object.now,
+      +object.then)
+  }
+
   if(object.type === 'init') {
     return new InitEvent(
       ''+object.id,
