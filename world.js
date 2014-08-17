@@ -536,7 +536,7 @@ function createWorld(options) {
   var playerRadius  = options.playerRadius || 0.25
   var bulletRadius  = options.bulletRadius || 0.15
   var flagRadius    = options.flagRadius   || 0.25
-  var syncRate      = options.syncRate     || 0.05*maxRTT
+  var syncRate      = options.syncRate     || 0.05
   return new World(
     c, 
     maxRTT, 

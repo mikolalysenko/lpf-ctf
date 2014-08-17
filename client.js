@@ -46,12 +46,12 @@ socket.onmessage = function(socketEvent) {
       world.handleEvent(event)
 
       var entity = world._entityIndex[event.id]
-      var lagEstimate = (world.clock.now()-entity.lastUpdate) + 1.25*world.syncRate
+      var lagEstimate = 1.25*((world.clock.now()-entity.lastUpdate) + world.syncRate)
       if(entity && entity.active) {
         if(entity._netLag) {
           entity._netLag = (1.0-netMass)*entity._netLag + netMass*lagEstimate
         } else {
-          entity._netLag = lagEstimate
+          entity._netLag = 4.0*lagEstimate
         }
       }
     break
