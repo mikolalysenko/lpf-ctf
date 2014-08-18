@@ -20,10 +20,10 @@ var colors = colormap({
 })
 
 var SYMBOLS = {
-  'flag':     '⚑',
-  'player':   '☺',
-  'bullet':   '⁍',
-  'score':    ''
+  'flag':     ['⚑',0.3,0.38],
+  'player':   ['☺',0,0.36],
+  'bullet':   ['⁍',0,0.37],
+  'score':    ['',0,0]
 }
 
 socket.onmessage = function(socketEvent) {
@@ -76,8 +76,9 @@ function initWorld(initState, id) {
 
   setInterval(heartbeat, 1000.0 * world.syncRate)
 
-  createCanvas(render, { 
-    context: '2d'
+  var gadget = createCanvas(render, { 
+    context: '2d',
+    retina: false
   })
 
   //Hook up input handlers
@@ -86,7 +87,8 @@ function initWorld(initState, id) {
     '<right>':  false,
     '<up>':     false,
     '<down>':   false,
-    '<space>':  false
+    '<space>':  false,
+    '<shift>':  false
   }
 
   var shootDirection = [world.bulletSpeed,0]
@@ -94,6 +96,18 @@ function initWorld(initState, id) {
   function updateMovement() {
     if(!world) {
       return
+    }
+
+    if(keyState['<shift>']) {
+      if(!world.clock._bulletTime) {
+        console.log('bullet time on')
+        world.clock.startBulletTime(0.5)
+      }
+    } else {
+      if(world.clock._bulletTime) {
+        console.log('bullet time off')
+        world.clock.stopBulletTime()
+      }
     }
 
     //Compute new movement event
@@ -179,6 +193,8 @@ function initWorld(initState, id) {
   window.addEventListener('blur', handleBlur)
 }
 
+
+var sentKillMessage = false
 function heartbeat() {
   if(!world) {
     return
@@ -194,6 +210,16 @@ function heartbeat() {
       x:    x,
       v:    player.trajectory.v(t)
     }))
+  } else if(player.trajectory.destroyTime < Infinity && !sentKillMessage) {
+    sentKillMessage = true
+    socket.send(JSON.stringify({
+      type: 'move',
+      id:   player.id,
+      now:  t,
+      t:    t,
+      x:    player.trajectory.states[player.trajectory.states.length-1].x,
+      v:    player.trajectory.states[player.trajectory.states.length-1].v
+    }))
   }
 }
 
@@ -205,6 +231,11 @@ function tickLocal() {
   var t = world.clock.now()
   var x = player.trajectory.x(t)
   if(x) {
+
+    if(world.clock.elapsedBulletTime() > 0.9 * world.maxRTT) {
+      world.clock.stopBulletTime()
+    }
+
     world.handleEvent(createEvent({
       type: 'move',
       id:   player.id,
@@ -213,7 +244,9 @@ function tickLocal() {
       x:    x,
       v:    player.trajectory.v(t)
     }))
-  } 
+  } else if(!sentKillMessage) {
+    heartbeat()
+  }
 }
 
 function computeCauchySurface(deltaT) {
@@ -269,23 +302,26 @@ function drawCauchy(context, width, height, phi, t0, t1) {
 }
 
 function render(context, width, height) {
+
+  context.setTransform(1,0,0,1,0,0)
+
   context.fillStyle = 'black'
   context.fillRect(0, 0, width, height)
 
   //Draw center line
   context.strokeStyle = 'grey'
   context.beginPath()
-  context.moveTo(0,height)
-  context.lineTo(2*width,height)
+  context.moveTo(0,0.5*height)
+  context.lineTo(width,0.5*height)
   context.stroke()
 
   context.font = '0.5px sans-serif'
   context.textAlign ='center'
   context.textBaseline = 'middle'
   context.setTransform(
-    height/12.0, 0,
-    0, height/12.0,
-    width, height)
+    height/24.0, 0,
+    0, height/24.0,
+    0.5*width, 0.5*height)
 
   if(!world) {
     context.fillStyle = 'white'
@@ -334,16 +370,19 @@ function render(context, width, height) {
         } else {
           context.fillStyle = 'red'
         }
-        context.fillText(SYMBOLS['flag'], x[0]+0.4, x[1]-0.4)
+        context.fillText(SYMBOLS['flag'][0], x[0]+0.4, x[1]-0.4)
       }
       if(e.type === 'flag' && 
         !(s === 'ready' || s === 'dropped')) {
         continue
       }
+
+      var symbol = SYMBOLS[e.type]
       if(e.id === player.id) {
         context.fillStyle = 'white'
-        context.fillText('☻', x[0], x[1]+0.25)
+        context.fillText('☻', x[0]+symbol[1], x[1]+symbol[2])
       }
+
       context.fillStyle = e.team
       if(e.type === 'bullet') {
         var v = e.trajectory.v(t)
@@ -351,13 +390,19 @@ function render(context, width, height) {
         context.save()
         context.translate(x[0], x[1])
         context.rotate(theta)
-        context.fillText(SYMBOLS[e.type], 0, 0.25)
+        context.fillText(symbol[0], symbol[1], symbol[2])
         context.restore()
       } else {
-        context.fillText(SYMBOLS[e.type], x[0], x[1]+0.25)        
+        context.fillText(symbol[0], x[0]+symbol[1], x[1]+symbol[2])
       }
     }
   }
+
+  context.fillStyle = 'red'
+  context.fillText(''+redScore, -10,-10)
+
+  context.fillStyle = 'blue'
+  context.fillText(''+blueScore, 10,10)
 
   //At start of game pop up instructions
   if(t1 <= player.trajectory.createTime) {

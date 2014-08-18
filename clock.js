@@ -14,11 +14,19 @@ function Clock(shift) {
   this._interpolating  = false
   this._interpStart    = 0.0
   this._interpRate     = 0.5
+  this._bulletTime     = false
+  this._bulletScale    = 1.0
+  this._bulletStart    = 0.0
+  this._bulletShift    = 0.0
 }
 
 var proto = Clock.prototype
 
 proto.now = function() {
+  if(this._bulletTime) {
+    return this._bulletScale*(now() - this._bulletStart) + this._bulletShift
+  }
+
   if(this._interpolating) {
     var delta   = this._target - this.shift
     var interpT = now() - this._interpStart
@@ -47,11 +55,44 @@ proto.reset = function(currentTime) {
   this._interpolating = false
 }
 
-proto.interpolate = function(targetTime, rate) {
+proto.interpolate = function(targetTime) {
   this._interpStart   = now()
   this._target        = targetTime - now()
   this._interpolating = true
-  this._interpRate    = rate || 0.5
+  this._interpRate    = 0.15
+}
+
+proto.startBulletTime = function(slowFactor) {
+  if(this._bulletTime) {
+    this.stopBulletTime()
+  }
+  var ctime = this.now()
+  this._bulletScale = slowFactor
+  this._bulletStart = now()
+  this._bulletShift = ctime
+  this._bulletTime  = true
+}
+
+proto.stopBulletTime = function() {
+  if(!this._bulletTime) {
+    return
+  }
+  var ctime           = this.now()
+  var t               = now()
+  var elapsedTime     = t - this._bulletStart
+  this._bulletTime    = false
+  this._interpStart   = t
+  this._target        = elapsedTime + this._bulletShift
+  this._interpolating = true
+  this._interpRate    = 0.15
+  this.shift          = ctime - t
+}
+
+proto.elapsedBulletTime = function() {
+  if(!this._bulletTime) {
+    return
+  }
+  return now() - this._bulletStart
 }
 
 function createClock(wallTime) {

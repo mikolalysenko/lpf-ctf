@@ -108,7 +108,7 @@ wss.on('connection', function(socket) {
 
   //Handle events from player
   socket.on('message', function(data) {
-    console.log('raw data:', data)
+    //console.log('raw data:', data)
 
     var event = createEvent.parse(data)
     if(!event || 
@@ -134,7 +134,7 @@ wss.on('connection', function(socket) {
       disconnect()
     }
   }
-  var timeoutInterval = setInterval(checkDisconnect, 200)
+  var timeoutInterval = setInterval(checkDisconnect, 10)
 
   //When socket closes, destroy player
   var closed = false
@@ -156,15 +156,15 @@ wss.on('connection', function(socket) {
     var destroyT = player.trajectory.destroyTime
     if(player.trajectory.destroyTime >= Infinity) {
       destroyT = nextafter(player.lastUpdate, Infinity)
-      var destroyEvent = createEvent({
-        type: 'leave',
-        id:   player.id,
-        t:    destroyT,
-        x:    player.trajectory.x(destroyT)
-      })
-      world.handleEvent(destroyEvent)
-      broadcast(destroyEvent)
     }
+    var destroyEvent = createEvent({
+      type: 'leave',
+      id:   player.id,
+      t:    destroyT,
+      x:    player.trajectory.x(destroyT)
+    })
+    world.handleEvent(destroyEvent)
+    broadcast(destroyEvent)
     closed = true
   }
   socket.on('close', disconnect)

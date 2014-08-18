@@ -17,11 +17,11 @@ function intersectCauchySurface(phi, q, t0, t1, n) {
   var x = [0,0]
 
   //Test end points
-  q.x(t0, x)
+  q.x(t1, x)
   if(phi(x[0], x[1]) < t0) {
     return -1
   }
-  q.x(t1, x)
+  q.x(t0, x)
   if(phi(x[0], x[1]) > t1) {
     return -1
   }

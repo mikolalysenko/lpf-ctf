@@ -47,7 +47,6 @@ function World(
   this._horizonEvents     = []
   this._entityIndex       = {}
   this._interactionRadius = this.playerRadius + Math.max(this.bulletRadius, this.flagRadius)
-
 }
 
 var proto = World.prototype
@@ -119,13 +118,22 @@ proto.destroyPlayer = function(t, id) {
 }
 
 proto.createFlag = function(params) {
+  var baseLocation = params.x || [0,0]
+  var team         = params.team || 'red'
+  var score        = '' + (+(params.score||0))
+  this.createEntity({
+    type:   'score',
+    team:   params.team,
+    x:      baseLocation.slice(),
+    state:  score
+  })
   return this.createEntity({
     type:   'flag',
-    team:   params.team || 'red',
-    x:      params.x    || [0,0],
+    team:   team,
+    x:      baseLocation.slice(),
     state:  'ready',
     data:   {
-      base: params.base || params.x || [0,0]
+      base: baseLocation.slice()
     }
   })
 }
@@ -148,7 +156,7 @@ proto.createPlayer = function(params) {
   var nextTeam = Math.random()
   if(numRed > numBlue) {
     nextTeam = 1.0
-  } else {
+  } else if(numRed < numBlue) {
     nextTeam = 0.0
   }
 
@@ -235,7 +243,7 @@ proto.validateEvent = function(event) {
 }
 
 
-function collideBullets(world, bullets, players, opBullets) {
+function collideBullets(world, bullets, players) {
   var n = bullets.length
   var m = players.length
   var hitEvents = []
@@ -281,7 +289,7 @@ function collideBullets(world, bullets, players, opBullets) {
   }
 }
 
-function processFlag(world, flag, t0, t1, players) {
+function processFlag(world, score, flag, t0, t1, players) {
   var n = players.length
   var hitP = null
   var hitT = Infinity
@@ -339,6 +347,7 @@ function processFlag(world, flag, t0, t1, players) {
             cflag.trajectory.setFull(t+world.maxRTT, cflag.data.base.slice(), [0,0], 'ready')
           }
           hitP.trajectory.setState(t, '')
+          score.trajectory.setState(t, ''+(+(score.trajectory.state(t))+1))
         }
       }
     } else {
@@ -359,18 +368,19 @@ function processFlag(world, flag, t0, t1, players) {
   return hitT
 }
 
-function collideFlags(world, flags, players) {
+function collideFlags(world, redScore, blueScore, flags, players) {
   var n = flags.length
   for(var i=0; i<n; ++i) {
     var fs = flags[i]
     var f  = fs[0]
     var f0 = fs[1]
     var f1 = fs[2]
-    while(true) {
-      f0 = processFlag(world, f, f0, f1, players)
-      if(f0 >= f1) {
-        break
+    while(f0 < f1) {
+      var score = redScore
+      if(f.team === 'blue') {
+        score = blueScore
       }
+      f0 = processFlag(world, score, f, f0, f1, players)
     }
   }
 }
@@ -398,7 +408,7 @@ function simulate(world, oldHorizon, newHorizon, t0, t1) {
       continue
     }
     var e0 = intersectCauchy(oldHorizon, e.trajectory, t0, t1)
-    var e1 = intersectCauchy(newHorizon, e.trajectory, e0, t1)
+    var e1 = intersectCauchy(newHorizon, e.trajectory, t0, t1)
     if(e0 < 0 && e1 < 0) {
       continue
     } else if(e0 < 0 && e1 >= 0) {
@@ -406,18 +416,17 @@ function simulate(world, oldHorizon, newHorizon, t0, t1) {
     } else if(e1 < 0 && e0 >= 0) {
       e1 = e.trajectory.destroyTime
     }
-    if(e1 < e0) {
-      continue
-    }
     teams[e.team][e.type].push([e, e0, e1])
   }
 
   //Handle bullet-player interactions
-  collideBullets(world, teams.red.bullet,  teams.blue.player, teams.blue.bullet)
-  collideBullets(world, teams.blue.bullet, teams.red.player,  teams.red.bullet)
+  collideBullets(world, teams.red.bullet,  teams.blue.player)
+  collideBullets(world, teams.blue.bullet, teams.red.player)
 
   //Handle flag-player interactions
   collideFlags(world, 
+    teams.red.score[0][0],
+    teams.blue.score[0][0],
     teams.red.flag.concat(teams.blue.flag),
     teams.red.player.concat(teams.blue.player))
 }
@@ -487,7 +496,7 @@ proto.handleEvent = function(event) {
 function createHorizon(events, now, cr, ir) {
   var n = events.length
   return function(x,y) {
-    var result = Infinity
+    var result = now
     for(var i=0; i<n; ++i) {
       var e  = events[i]
       var dx = e[0] - x

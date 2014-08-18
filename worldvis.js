@@ -82,6 +82,9 @@ function createWorldVisualizer(world) {
 
     for(var i=0; i<world.entities.length; ++i) {
       var e         = world.entities[i]
+      if(e.type === 'score') {
+        continue
+      }
       var symbol    = SYMBOLS[e.type]
       var color     = COLORS[e.team]
       var pointList = []
