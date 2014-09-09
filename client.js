@@ -9,9 +9,10 @@ var createEvent     = require('./event')
 var intersectCauchy = require('./intersect-cauchy')
 
 var socket        = new WebSocket('ws://' + url.host)
-var world, player, heartbeatInterval
-var netLag        = 0.15
+var netLag        = 0.1
 var netMass       = 0.05
+var lagMass       = 0.001
+var world, player, heartbeatInterval
 
 var colors = colormap({
   colormap: 'jet',
@@ -20,9 +21,9 @@ var colors = colormap({
 })
 
 var SYMBOLS = {
-  'flag':     ['⚑',0.3,0.38],
-  'player':   ['☺',0,0.36],
-  'bullet':   ['⁍',0,0.37],
+  'flag':     ['⚑',0,0.25],
+  'player':   ['☺',0,0.25],
+  'bullet':   ['⁍',0,0.25],
   'score':    ['',0,0]
 }
 
@@ -42,22 +43,15 @@ socket.onmessage = function(socketEvent) {
     case 'shoot':
     case 'leave':
 
-      world.clock.interpolate(event.now)
+      //world.clock.interpolate(event.now)
       world.handleEvent(event)
 
       var entity = world._entityIndex[event.id]
-      var lagEstimate = 1.25*((world.clock.now()-entity.lastUpdate) + world.syncRate)
-      if(entity && entity.active) {
-        if(entity._netLag) {
-          entity._netLag = (1.0-netMass)*entity._netLag + netMass*lagEstimate
-        } else {
-          entity._netLag = 4.0*lagEstimate
-        }
-      }
+      entity._netLag = world.maxBulletTime
     break
 
     case 'sync':
-      netLag = (1.0-netMass) * netLag + netMass * (world.clock.now() - event.then)
+      netLag = (1.0-netMass) * netLag + netMass * (world.clock.wall() - event.then)
       world.clock.interpolate(event.now)
     break
   }
@@ -99,7 +93,7 @@ function initWorld(initState, id) {
     }
 
     if(keyState['<shift>']) {
-      if(!world.clock._bulletTime) {
+      if(!world.clock._bulletTime  && (world.clock.bulletDelay()+netLag) < 0.1*world.maxBulletTime) {
         console.log('bullet time on')
         world.clock.startBulletTime(0.5)
       }
@@ -142,7 +136,7 @@ function initWorld(initState, id) {
       var moveEvent = createEvent({
         type: 'move',
         t:    t,
-        now:  t,
+        now:  world.clock.wall(),
         id:   player.id,
         x:    player.trajectory.x(t),
         v:    v
@@ -156,7 +150,7 @@ function initWorld(initState, id) {
         var shootEvent = createEvent({
           type: 'shoot',
           t:    t,
-          now:  t,
+          now:  world.clock.wall(),
           id:   player.id,
           x:    player.trajectory.x(t),
           v:    shootDirection
@@ -200,12 +194,13 @@ function heartbeat() {
     return
   }
   var t = world.clock.now()
+  var n = world.clock.wall()
   var x = player.trajectory.x(t)
   if(x) {
     socket.send(JSON.stringify({
       type: 'move',
       id:   player.id,
-      now:  t,
+      now:  n,
       t:    t,
       x:    x,
       v:    player.trajectory.v(t)
@@ -215,7 +210,7 @@ function heartbeat() {
     socket.send(JSON.stringify({
       type: 'move',
       id:   player.id,
-      now:  t,
+      now:  n,
       t:    t,
       x:    player.trajectory.states[player.trajectory.states.length-1].x,
       v:    player.trajectory.states[player.trajectory.states.length-1].v
@@ -232,7 +227,8 @@ function tickLocal() {
   var x = player.trajectory.x(t)
   if(x) {
 
-    if(world.clock.elapsedBulletTime() > 0.9 * world.maxRTT) {
+    if(world.clock.bulletDelay()+netLag > world.maxBulletTime) {
+      console.log('bullet time drained')
       world.clock.stopBulletTime()
     }
 
@@ -260,8 +256,8 @@ function computeCauchySurface(deltaT) {
       continue
     }
     if(e.active && e._netLag) {
-      var t = Math.max(Math.min(e.lastUpdate, now-e._netLag), e.trajectory.createTime)
-      var x = e.trajectory.x(t)
+      var t = Math.min(e.lastUpdate, t1-e._netLag)
+      var x = e.trajectory.x(Math.max(t, e.trajectory.createTime))
       horizonPoints.push([t, x[0], x[1]])
       t0 = Math.min(t0, t)
     }
@@ -287,8 +283,8 @@ function drawCauchy(context, width, height, phi, t0, t1) {
   var ptr     = 0
   for(var i=0; i<height; ++i) {
     for(var j=0; j<width; ++j) {
-      var y = (i-height/2) * scale
-      var x = (j-width/2) * scale
+      var y = (i-0.5*height) * scale
+      var x = (j-0.5*width) * scale
       var t = phi(x, y)
       var idx = (255 * (t - t0) / (t1 - t0))|0
       var color = colors[idx]
@@ -315,9 +311,9 @@ function render(context, width, height) {
   context.lineTo(width,0.5*height)
   context.stroke()
 
-  context.font = '0.5px sans-serif'
+  context.font = '0.5pt sans-serif'
   context.textAlign ='center'
-  context.textBaseline = 'middle'
+  context.textBaseline = 'bottom'
   context.setTransform(
     height/24.0, 0,
     0, height/24.0,
@@ -327,6 +323,11 @@ function render(context, width, height) {
     context.fillStyle = 'white'
     context.fillText('lost connection to server', 0,0)
     return
+  }
+
+  if(world.clock._bulletTime) {
+    context.fillStyle = 'white'
+    context.fillText('BULLET TIME', 0,-10)
   }
 
   var prevTick = world._lastTick
@@ -339,7 +340,7 @@ function render(context, width, height) {
   var t0  = surfaceData[1]
   var t1  = surfaceData[2]
 
-  //drawCauchy(context, 2*width, 2*height, phi, t0, t1)
+  //drawCauchy(context, width, height, phi, t0, t1)
 
   //For each entity, draw it dumbly (apply lpf later)
   var redScore  = 0
@@ -370,12 +371,20 @@ function render(context, width, height) {
         } else {
           context.fillStyle = 'red'
         }
-        context.fillText(SYMBOLS['flag'][0], x[0]+0.4, x[1]-0.4)
+        context.fillText(SYMBOLS['flag'][0], x[0]+0.2, x[1]-0.2)
       }
       if(e.type === 'flag' && 
         !(s === 'ready' || s === 'dropped')) {
         continue
       }
+
+      /*
+      //Debug boxes
+      context.fillStyle = 'white'
+      context.fillRect(
+        x[0]-0.25, x[1]-0.25, 
+        0.5, 0.5)
+      */
 
       var symbol = SYMBOLS[e.type]
       if(e.id === player.id) {

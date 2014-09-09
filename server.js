@@ -108,8 +108,6 @@ wss.on('connection', function(socket) {
 
   //Handle events from player
   socket.on('message', function(data) {
-    //console.log('raw data:', data)
-
     var event = createEvent.parse(data)
     if(!event || 
        event.id !== player.id ||
@@ -119,11 +117,12 @@ wss.on('connection', function(socket) {
       }
       return
     }
+    var then = event.now
     broadcast(event, player.id)
     world.handleEvent(event)
     socket.send(JSON.stringify({
       type: 'sync',
-      then:  event.now,
+      then:  then,
       now:   world.clock.now()
     }))
   })

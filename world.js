@@ -20,6 +20,7 @@ function World(
     playerRadius,
     bulletRadius,
     flagRadius,
+    maxBulletTime,
     syncRate,
     entities, 
     clock) {
@@ -34,6 +35,7 @@ function World(
   this.bulletRadius = bulletRadius
   this.flagRadius   = flagRadius
   this.syncRate     = syncRate
+  this.maxBulletTime = maxBulletTime
 
   this.entities     = entities
 
@@ -546,6 +548,7 @@ function createWorld(options) {
   var bulletRadius  = options.bulletRadius || 0.15
   var flagRadius    = options.flagRadius   || 0.25
   var syncRate      = options.syncRate     || 0.05
+  var maxBulletTime = options.maxBulletTime || 0.5
   return new World(
     c, 
     maxRTT, 
@@ -558,6 +561,7 @@ function createWorld(options) {
     bulletRadius,
     flagRadius,
     syncRate,
+    maxBulletTime,
     [], 
     createClock(0))
 }
@@ -574,6 +578,7 @@ proto.toJSON = function() {
     bulletRadius: this.bulletRadius,
     flagRadius:   this.flagRadius,
     syncRate:     this.syncRate,
+    maxBulletTime: this.maxBulletTime,
     now:          this.clock.now(),
     entities: this.entities.map(function(e) {
       return e.toJSON()
@@ -595,6 +600,7 @@ function worldFromJSON(object) {
     +object.bulletRadius,
     +object.flagRadius,
     +object.syncRate,
+    +object.maxBulletTime,
     entities, 
     createClock(+object.now))
   for(var i=0; i<entities.length; ++i) {

@@ -22,6 +22,10 @@ function Clock(shift) {
 
 var proto = Clock.prototype
 
+proto.wall = function() {
+  return now()
+}
+
 proto.now = function() {
   if(this._bulletTime) {
     return this._bulletScale*(now() - this._bulletStart) + this._bulletShift
@@ -86,6 +90,15 @@ proto.stopBulletTime = function() {
   this._interpolating = true
   this._interpRate    = 0.15
   this.shift          = ctime - t
+}
+
+proto.bulletDelay = function() {
+  if(this._bulletTime) {
+    return this.elapsedBulletTime() * (1.0 - this._bulletScale)
+  }
+  var interp = this.now()
+  var target = now() + this._target
+  return Math.max(target-interp, 0)
 }
 
 proto.elapsedBulletTime = function() {
