@@ -8,6 +8,13 @@ function intersectCauchySurface(phi, q, t0, t1, n) {
   t0 = t0 || 0
   t1 = t1 || 1e10
 
+  if(t1 < q.createTime) {
+    return -1
+  }
+  if(t0 > q.destroyTime) {
+    return -1
+  }
+
   t0 = Math.max(t0, q.createTime)
   t1 = Math.min(t1, q.destroyTime)
   if(t1 < t0) {
@@ -18,11 +25,13 @@ function intersectCauchySurface(phi, q, t0, t1, n) {
 
   //Test end points
   q.x(t1, x)
-  if(phi(x[0], x[1]) < t0) {
+  var thi = phi(x[0], x[1])
+  if(t1 < thi) {
     return -1
   }
   q.x(t0, x)
-  if(phi(x[0], x[1]) > t1) {
+  var tlo = phi(x[0], x[1])
+  if(tlo < t0) {
     return -1
   }
 
@@ -33,11 +42,16 @@ function intersectCauchySurface(phi, q, t0, t1, n) {
     var tq = phi(x[0], x[1])
     if(tq < t) {
       t1 = t
-    } else if(tq > t) {
-      t0 = t
     } else {
-      return tq
+      t0 = t
     }
+  }
+
+
+  var xx = q.x(0.5*(t0+t1))
+  var dd = phi(xx[0], xx[1]) - 0.5*(t0+t1)
+  if(Math.abs(dd) > 1e-6) {
+    console.log(dd, tlo, thi)
   }
 
   return 0.5 * (t0 + t1)

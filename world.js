@@ -363,6 +363,7 @@ function processFlag(world, score, flag, t0, t1, players) {
       //If player dies in window, then we need to drop the flag
       if(hitP.trajectory.destroyTime < 0) {
         flag.trajectory.setFull(t, hitP.trajectory.x(hitP.trajectory.destroyTime), [0,0], 'dropped')
+        hitT = hitP.trajectory.destroyTime
       }
     }
   }
@@ -388,6 +389,10 @@ function collideFlags(world, redScore, blueScore, flags, players) {
 }
 
 function simulate(world, oldHorizon, newHorizon, t0, t1) {
+  if(t0 >= t1) {
+    return
+  }
+
   //First filter entities into groups
   var teams = {
     red: {
@@ -412,6 +417,9 @@ function simulate(world, oldHorizon, newHorizon, t0, t1) {
     var e0 = intersectCauchy(oldHorizon, e.trajectory, t0, t1)
     var e1 = intersectCauchy(newHorizon, e.trajectory, t0, t1)
     if(e0 < 0 && e1 < 0) {
+      if(e.type === 'flag' || e.type === 'score') {
+        throw new Error('this should never happen')
+      }
       continue
     } else if(e0 < 0 && e1 >= 0) {
       e0 = e.trajectory.createTime
@@ -538,7 +546,7 @@ proto.horizon = function() {
 function createWorld(options) {
   options           = options || {}
   var c             = options.speedOfLight || 4.5
-  var maxRTT        = options.maxRTT       || 6.0
+  var maxRTT        = options.maxRTT       || 3.0
   var debugTrace    = options.debugTrace   || false
   var bulletSpeed   = options.bulletSpeed  || 0.98*c
   var playerSpeed   = options.playerSpeed  || 0.5*c
@@ -547,7 +555,7 @@ function createWorld(options) {
   var playerRadius  = options.playerRadius || 0.25
   var bulletRadius  = options.bulletRadius || 0.15
   var flagRadius    = options.flagRadius   || 0.25
-  var syncRate      = options.syncRate     || 0.05
+  var syncRate      = options.syncRate     || 0.01
   var maxBulletTime = options.maxBulletTime || 0.5
   return new World(
     c, 

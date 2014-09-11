@@ -12,7 +12,9 @@ var socket        = new WebSocket('ws://' + url.host)
 var netLag        = 0.1
 var netMass       = 0.05
 var lagMass       = 0.001
-var world, player, heartbeatInterval
+var world, player, heartbeatInterval, deadTimeout
+
+var TEST_BULLET_TIME = false
 
 var colors = colormap({
   colormap: 'jet',
@@ -52,6 +54,7 @@ socket.onmessage = function(socketEvent) {
 
     case 'sync':
       netLag = (1.0-netMass) * netLag + netMass * (world.clock.wall() - event.then)
+
       world.clock.interpolate(event.now)
     break
   }
@@ -92,7 +95,7 @@ function initWorld(initState, id) {
       return
     }
 
-    if(keyState['<shift>']) {
+    if(TEST_BULLET_TIME || keyState['<shift>']) {
       if(!world.clock._bulletTime  && (world.clock.bulletDelay()+netLag) < 0.1*world.maxBulletTime) {
         console.log('bullet time on')
         world.clock.startBulletTime(0.5)
@@ -166,6 +169,9 @@ function initWorld(initState, id) {
     if(key in keyState) {
       keyState[key] = true
     }
+    if(key === 'A') {
+      //TEST_BULLET_TIME = true
+    }
     updateMovement()
   })
 
@@ -174,6 +180,7 @@ function initWorld(initState, id) {
     if(key in keyState) {
       keyState[key] = false
     }
+
     updateMovement()
   })
 
@@ -225,6 +232,12 @@ function tickLocal() {
   }
   var t = world.clock.now()
   var x = player.trajectory.x(t)
+
+  if(TEST_BULLET_TIME && !world.clock._bulletTime  && (world.clock.bulletDelay()+netLag+world.syncRate) < 0.1*world.maxBulletTime) {
+    console.log('bullet time on')
+    world.clock.startBulletTime(0.5)
+  }
+    
   if(x) {
 
     if(world.clock.bulletDelay()+netLag > world.maxBulletTime) {
@@ -256,7 +269,7 @@ function computeCauchySurface(deltaT) {
       continue
     }
     if(e.active && e._netLag) {
-      var t = Math.min(e.lastUpdate, t1-e._netLag)
+      var t = Math.min(e.lastUpdate, t1-(e._netLag + 2.0*netLag))
       var x = e.trajectory.x(Math.max(t, e.trajectory.createTime))
       horizonPoints.push([t, x[0], x[1]])
       t0 = Math.min(t0, t)
@@ -270,7 +283,10 @@ function computeCauchySurface(deltaT) {
       var dx = p[1] - x
       var dy = p[2] - y
       var d  = Math.max(Math.sqrt(Math.pow(dx,2) + Math.pow(dy,2))-world._interactionRadius, 0)
-      t = Math.min(t, t0 + d/world.speedOfLight)
+      //t = Math.min(t, t0 + d/world.speedOfLight)
+
+      var d2 = d/world.speedOfLight
+      t = Math.min(t, t0 + (t1-t0)*(1-Math.exp(-3.0*d2)))
     }
     return t
   }
@@ -301,8 +317,13 @@ function render(context, width, height) {
 
   context.setTransform(1,0,0,1,0,0)
 
-  context.fillStyle = 'black'
-  context.fillRect(0, 0, width, height)
+  if(world.clock._bulletTime) {
+    context.fillStyle = 'rgba(0,0,0,0.05)'
+    context.fillRect(0, 0, width, height)
+  } else {
+    context.fillStyle = 'black'
+    context.fillRect(0, 0, width, height)
+  }
 
   //Draw center line
   context.strokeStyle = 'grey'
@@ -325,11 +346,6 @@ function render(context, width, height) {
     return
   }
 
-  if(world.clock._bulletTime) {
-    context.fillStyle = 'white'
-    context.fillText('BULLET TIME', 0,-10)
-  }
-
   var prevTick = world._lastTick
   tickLocal()
   var deltaT = world._lastTick - prevTick
@@ -341,6 +357,11 @@ function render(context, width, height) {
   var t1  = surfaceData[2]
 
   //drawCauchy(context, width, height, phi, t0, t1)
+
+  if(world.clock._bulletTime) {
+    context.fillStyle = 'rgba(255,255,255,0.15)'
+    context.fillText('BULLET TIME', 0,-10)
+  }
 
   //For each entity, draw it dumbly (apply lpf later)
   var redScore  = 0
@@ -378,14 +399,6 @@ function render(context, width, height) {
         continue
       }
 
-      /*
-      //Debug boxes
-      context.fillStyle = 'white'
-      context.fillRect(
-        x[0]-0.25, x[1]-0.25, 
-        0.5, 0.5)
-      */
-
       var symbol = SYMBOLS[e.type]
       if(e.id === player.id) {
         context.fillStyle = 'white'
@@ -420,5 +433,11 @@ function render(context, width, height) {
   } else if(player.trajectory.destroyTime < Infinity) {
     context.fillStyle = 'white'
     context.fillText('you died.', 0, 0)
+
+    if(!deadTimeout) {
+      deadTimeout = setTimeout(function() {
+        location.reload()
+      }, 2500)
+    }
   }
 }
