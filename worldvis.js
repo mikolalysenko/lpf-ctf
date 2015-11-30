@@ -4,9 +4,9 @@ module.exports = createWorldVisualizer
 
 var createShell   = require('gl-now')
 var createCamera  = require('game-shell-orbit-camera')
-var createAxes    = require('gl-axes')
-var createLine    = require('gl-line-plot')
-var createScatter = require('gl-scatter-plot')
+var createAxes    = require('gl-axes3d')
+var createLine    = require('gl-line3d')
+var createScatter = require('gl-scatter3d')
 var glm           = require('gl-matrix')
 var mat4          = glm.mat4
 
