@@ -92,12 +92,14 @@ function createWorldVisualizer(world) {
         var s = e.trajectory.states[j]
         pointList.push([s.x[0], s.x[1], s.t])
       }
-      lines.push(createLine(gl, {
+      lines.push(createLine({
+        gl:         gl,
         position:   pointList,
         color:      color,
         lineWidth:  1
       }))
-      points.push(createScatter(gl, {
+      points.push(createScatter({
+        gl:           gl,
         position:     pointList,
         color:        color,
         glyph:        symbol,
