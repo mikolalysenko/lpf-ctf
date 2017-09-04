@@ -4,11 +4,16 @@ var url             = require('parsed-url')
 var createCanvas    = require('canvas-testbed')
 var vkey            = require('vkey')
 var colormap        = require('colormap')
+var RtcDataStream = require('rtc-data-stream')
+var quickconnect = require('rtc-quickconnect')
+var eos = require('end-of-stream')
+var extend             = require('xtend')
 var createWorld     = require('./world')
 var createEvent     = require('./event')
 var intersectCauchy = require('./intersect-cauchy')
 
-var socket        = new WebSocket('ws://' + url.host)
+var RTC_ROOM_NAME = 'latency-perception-filter'
+
 var netLag        = 0.1
 var netMass       = 0.05
 var lagMass       = 0.001
@@ -29,10 +34,42 @@ var SYMBOLS = {
   'score':    ['',0,0]
 }
 
-socket.onmessage = function(socketEvent) {
-  var event = createEvent.parse(socketEvent.data)
+// var socket        = new WebSocket('ws://' + url.host)
+// socket.onmessage = onMessage
+// socket.onerror = socket.onclose = onConnectionClose
+var networkStream = null
+
+// quickconnect('https://switchboard.rtc.io/', { room: RTC_ROOM_NAME })
+quickconnect('https://switchboard.rtc.io/', { room: RTC_ROOM_NAME })
+  .createDataChannel('primary')
+  .on('channel:opened:primary', function(peerId, channel) {
+
+    console.log('peer found')
+    networkStream = RtcDataStream(channel)
+    networkStream.on('data', onMessage)
+    eos(networkStream, onConnectionClose)
+
+})
+
+
+
+function onConnectionClose() {
+  console.log('lost connection to server')
+  destroyWorld()
+}
+
+function sendMessage(data){
+  networkStream.push(JSON.stringify(data))
+}
+
+function onMessage(event) {
+  handleMessage(JSON.parse(event))
+}
+
+function handleMessage(event) {
+  var event = createEvent.parse(event.data)
   if(!event) {
-    console.warn('bad event:', socketEvent.data)
+    console.warn('bad event:', event.data)
     return
   }
   switch(event.type) {
@@ -60,8 +97,7 @@ socket.onmessage = function(socketEvent) {
   }
 }
 
-socket.onerror = socket.onclose = function() {
-  console.log('lost connection to server')
+function destroyWorld(){
   world = null
 }
 
@@ -108,59 +144,64 @@ function initWorld(initState, id) {
     }
 
     //Compute new movement event
-    var v = [0,0]
+    var movementVector = [0,0]
     if(keyState['<left>']) {
-      v[0] -= 1
+     movementVector[0] -= 1
     }
     if(keyState['<right>']) {
-      v[0] += 1
+      movementVector[0] += 1
     }
     if(keyState['<up>']) {
-      v[1] -= 1
+      movementVector[1] -= 1
     }
     if(keyState['<down>']) {
-      v[1] += 1
+      movementVector[1] += 1
     }
+
 
     //Normalize velocity
-    var vl = Math.sqrt(Math.pow(v[0],2) + Math.pow(v[1],2))
-    if(vl > 1e-4) {
-      shootDirection[0] = world.bulletSpeed*v[0]/vl
-      shootDirection[1] = world.bulletSpeed*v[1]/vl
-      vl = world.playerSpeed / vl
+    const minimumDeltaThreshold = 1e-4
+    var velocity = Math.sqrt(Math.pow(movementVector[0],2) + Math.pow(movementVector[1],2))
+    if(velocity > minimumDeltaThreshold) {
+      shootDirection[0] = world.bulletSpeed*movementVector[0]/velocity
+      shootDirection[1] = world.bulletSpeed*movementVector[1]/velocity
+      velocity = world.playerSpeed / velocity
     }
-    v[0] *= vl
-    v[1] *= vl
+    movementVector[0] *= velocity
+    movementVector[1] *= velocity
 
+    var time = world.clock.now()
     //Apply movement event
-    var t = world.clock.now()
-    var cv = player.trajectory.v(t)
-    if(cv && Math.abs(v[0]-cv[0]) + Math.abs(v[1]-cv[1]) > 1e-4) {
+    
+    var playerTrajectoryVector = player.trajectory.v(time)
+    if(playerTrajectoryVector && Math.abs(movementVector[0]-playerTrajectoryVector[0]) + Math.abs(movementVector[1]-playerTrajectoryVector[1]) > minimumDeltaThreshold) {
       var moveEvent = createEvent({
         type: 'move',
-        t:    t,
-        now:  world.clock.wall(),
-        id:   player.id,
-        x:    player.trajectory.x(t),
+        x:    player.trajectory.x(time),
         v:    v
       })
-      world.handleEvent(moveEvent)
-      socket.send(JSON.stringify(moveEvent))
+      emitEvent(moveEvent)
     }
 
     if(keyState['<space>']) {
-      if(player.data.lastShot + world.shootRate < t) {
+      if(player.data.lastShot + world.shootRate < time) {
         var shootEvent = createEvent({
           type: 'shoot',
-          t:    t,
-          now:  world.clock.wall(),
-          id:   player.id,
-          x:    player.trajectory.x(t),
+          x:    player.trajectory.x(time),
           v:    shootDirection
         })
-        world.handleEvent(shootEvent)
-        socket.send(JSON.stringify(shootEvent))
+        emitEvent(shootEvent)
       }
+    }
+
+    function emitEvent(event){
+      event = extend(event, {
+        t:    time,
+        now:  world.clock.wall(),
+        id:   player.id,
+      })
+      world.handleEvent(event)
+      sendMessage(JSON.stringify(event))
     }
   }
 
@@ -204,7 +245,7 @@ function heartbeat() {
   var n = world.clock.wall()
   var x = player.trajectory.x(t)
   if(x) {
-    socket.send(JSON.stringify({
+    sendMessage(JSON.stringify({
       type: 'move',
       id:   player.id,
       now:  n,
@@ -214,7 +255,7 @@ function heartbeat() {
     }))
   } else if(player.trajectory.destroyTime < Infinity && !sentKillMessage) {
     sentKillMessage = true
-    socket.send(JSON.stringify({
+    sendMessage(JSON.stringify({
       type: 'move',
       id:   player.id,
       now:  n,
