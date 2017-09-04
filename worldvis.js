@@ -23,6 +23,8 @@ var COLORS  = {
 
 function createWorldVisualizer(world) {
 
+  // world
+
   var shell = createShell({
     clearColor: [0,0,0,0],
     tickRate:   5
@@ -40,10 +42,14 @@ function createWorldVisualizer(world) {
                 0, 0, -20, 1]
   var tickScale = bounds[1][2]/25.0
 
+  var axes
+
   camera.lookAt(
     [5,-50,5],
     [0,0,0],
     [0,0,1])
+
+  // ticks
 
   var ticks = [ [], [], [] ]
 
@@ -64,8 +70,15 @@ function createWorldVisualizer(world) {
     })
   }
 
+  // events
 
-  shell.on('gl-init', function() {
+  shell.on('gl-init', initializeWorld)
+  shell.on('gl-render', render)
+
+  return unsubscribe
+
+
+  function initializeWorld() {
 
     var gl = shell.gl
 
@@ -80,36 +93,21 @@ function createWorldVisualizer(world) {
       gridColor:      [0.8, 0.8, 0.8]
     })
 
-    for(var i=0; i<world.entities.length; ++i) {
-      var e         = world.entities[i]
-      if(e.type === 'score') {
-        continue
-      }
-      var symbol    = SYMBOLS[e.type]
-      var color     = COLORS[e.team]
-      var pointList = []
-      for(var j=0; j<e.trajectory.states.length; ++j) {
-        var s = e.trajectory.states[j]
-        pointList.push([s.x[0], s.x[1], s.t])
-      }
-      lines.push(createLine({
-        gl:         gl,
-        position:   pointList,
-        color:      color,
-        lineWidth:  1
-      }))
-      points.push(createScatter({
-        gl:           gl,
-        position:     pointList,
-        color:        color,
-        glyph:        symbol,
-        size:         12,
-        orthographic: true
-      }))
-    }
-  })
+    updateState(world)
 
-  shell.on('gl-render', function() {
+  }
+
+  function updateState(state) {
+    lines  = []
+    points = []
+    state.entities
+      .filter(function(event){ return event.type !== 'score' })
+      .map(constructEntity)
+  }
+
+
+  function render() {
+
     var gl = shell.gl
     gl.enable(gl.DEPTH_TEST)
 
@@ -133,5 +131,37 @@ function createWorldVisualizer(world) {
     for(var i=0; i<points.length; ++i) {
       points[i].draw(cameraParameters)
     }
-  })
+
+  }
+
+  function unsubscribe(){
+    shell.removeAllListeners()
+  }
+
+  function constructEntity(data) {
+    
+    var gl = shell.gl
+    var symbol    = SYMBOLS[data.type]
+    var color     = COLORS[data.team]
+    var pointList = []
+    for(var j=0; j<data.trajectory.states.length; ++j) {
+      var s = data.trajectory.states[j]
+      pointList.push([s.x[0], s.x[1], s.t])
+    }
+    lines.push(createLine({
+      gl:         gl,
+      position:   pointList,
+      color:      color,
+      lineWidth:  1
+    }))
+    points.push(createScatter({
+      gl:           gl,
+      position:     pointList,
+      color:        color,
+      glyph:        symbol,
+      size:         12,
+      orthographic: true
+    }))
+
+  }
 }

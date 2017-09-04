@@ -1,9 +1,10 @@
 'use strict'
+var RTC_ROOM_NAME = 'latency-perception-filter'
 
 var PORTNUM = 8080
 
-var beefy     = require('beefy')
-var http      = require('http')
+var quickconnect = require('rtc-quickconnect');
+
 var path      = require('path')
 var url       = require('url')
 var ws        = require('ws')
@@ -11,32 +12,6 @@ var nextafter = require('nextafter')
 
 var createWorld = require('./world')
 var createEvent = require('./event')
-
-//Initialize http server, websockets and beefy
-var beefyHandler = beefy({
-  entries: [
-    'client.js',
-    'visualize.js'
-  ],
-  cwd:      __dirname,
-  live:     true,
-  quiet:    false,
-  watchify: false 
-})
-var server = http.createServer(function(req, res) {
-  var parsedURL = url.parse(req.url)
-  if(parsedURL && parsedURL.pathname === '/world' ) {
-    res.end(JSON.stringify(world.toJSON()))
-    return
-  }
-  return beefyHandler(req, res)
-})
-var wss = new ws.Server({ 
-  server:         server,
-  clientTracking: false
-})
-server.listen(PORTNUM)
-console.log('listening on:', PORTNUM)
 
 //World state
 var world = createWorld({
@@ -56,6 +31,27 @@ world.createFlag({
 //Client list
 var clients = []
 
+// var wss = new ws.Server({ 
+//   server:         server,
+//   clientTracking: false
+// })
+
+// //Handle connections
+// wss.on('connection', initNetworking)
+
+quickconnect('https://switchboard.rtc.io/', {
+  // RTCPeerConnection: webrtc.RTCPeerConnection,
+  room: RTC_ROOM_NAME,
+})
+  .createDataChannel('primary')
+  .on('channel:opened:primary', function(peerId, channel) {
+
+    console.log('peer found')
+    networkStream = RtcDataStream(channel)
+    initNetworking(networkStream)
+
+})
+
 //Broadcast event to all clients
 function broadcast(event, skipID) {
   event.now = world.clock.now()
@@ -64,16 +60,33 @@ function broadcast(event, skipID) {
     if(clients[i].player.id === skipID) {
       continue
     }
-    if(clients[i].socket.readyState === ws.OPEN) {
-      clients[i].socket.send(message)
+    if(clients[i].network.readyState === ws.OPEN) {
+      clients[i].network.send(message)
     } else {
       console.warn('trying to send message to closed socket')
     }
   }
 }
 
-//Handle connections
-wss.on('connection', function(socket) {
+function initNetworking(stream) {
+
+  var timeoutInterval = setInterval(checkDisconnect, 10)
+
+  //When socket closes, destroy player
+  var closed = false
+
+  networkStream.on('data', onMessage)
+  eos(networkStream, disconnect)
+
+  // socket.on('message', onMessage)
+  // socket.on('close', disconnect)
+  // socket.on('error', disconnect)
+
+  var peerConnection = {
+    send: function(data){
+      socket.send(JSON.stringify(data))
+    }
+  }
 
   //Try adding player to the world
   var player = world.createPlayer()
@@ -93,21 +106,21 @@ wss.on('connection', function(socket) {
   })
 
   //Send initial state
-  socket.send(JSON.stringify({
+  peerConnection.sendMessage({
     type: 'init',
     id: player.id,
     world: world.toJSON()
-  }))
+  })
   
   //Save player connection
   var connection = {
     player: player,
-    socket: socket 
+    network: peerConnection,
   }
   clients.push(connection)
 
   //Handle events from player
-  socket.on('message', function(data) {
+  function onMessage(data) {
     var event = createEvent.parse(data)
     if(!event || 
        event.id !== player.id ||
@@ -120,12 +133,12 @@ wss.on('connection', function(socket) {
     var then = event.now
     broadcast(event, player.id)
     world.handleEvent(event)
-    socket.send(JSON.stringify({
+    peerConnection.sendMessage(JSON.stringify({
       type: 'sync',
       then:  then,
       now:   world.clock.now()
     }))
-  })
+  }
 
   //Check timeout on socket
   function checkDisconnect() {
@@ -133,10 +146,7 @@ wss.on('connection', function(socket) {
       disconnect()
     }
   }
-  var timeoutInterval = setInterval(checkDisconnect, 10)
 
-  //When socket closes, destroy player
-  var closed = false
   function disconnect() {
     if(closed) {
       return
@@ -166,6 +176,5 @@ wss.on('connection', function(socket) {
     broadcast(destroyEvent)
     closed = true
   }
-  socket.on('close', disconnect)
-  socket.on('error', disconnect)
-})
+  
+}
